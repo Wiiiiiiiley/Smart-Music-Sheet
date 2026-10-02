@@ -1,54 +1,60 @@
-# EduTempo - 智能乐团排练系统
+# EduTempo — Intelligent Ensemble Rehearsal System
 
-EduTempo 是一款专为非专业乐团（学生乐团、社区乐团、业余管弦/民乐团）设计的智能排练系统。它解决了传统排练中声部混杂、标记困难、乐谱管理混乱等问题，通过**指挥实时标记**、**分声部音频提示**、**多端乐谱同步**三大核心功能，让每一次排练都更高效。
+EduTempo is an intelligent rehearsal system designed for non-professional ensembles, including student orchestras, community ensembles, amateur orchestras, and traditional Chinese instrumental ensembles.
 
-## 核心功能
+It addresses common rehearsal challenges such as overlapping instrumental parts, difficult score annotation, and disorganized sheet music management. With **real-time conductor annotations**, **section-specific audio cues**, and **cross-device score synchronization**, EduTempo makes every rehearsal more efficient.
 
-### 指挥端
-- **乐谱管理**：上传 PDF/MusicXML 格式的乐谱
-- **实时标记**：在乐手谱面上圈画、批注，实时同步到所有客户端
-- **分声部提示**：向指定声部或全体发送提示音、节拍器、示范音频
-- **排练控制**：开始/停止排练，查看排练进度
-- **成员管理**：查看乐团成员列表，按声部筛选
+## Key Features
 
-### 乐手端
-- **电子乐谱**：使用平板或手机打开电子乐谱
-- **分声部音频**：佩戴耳机收听自己声部的排练提示音轨
-- **实时标记**：接收指挥的实时标记与文字备注
-- **音频控制**：独立调节各声道音量
+### Conductor Interface
 
-## 技术栈
+- **Score Management**: Upload scores in PDF or MusicXML format.
+- **Real-Time Annotations**: Draw and annotate on musicians’ scores, with changes synchronized instantly across connected devices.
+- **Section-Specific Cues**: Send audio cues, metronome beats, and demonstration recordings to selected sections or the entire ensemble.
+- **Rehearsal Control**: Start and stop rehearsals and monitor rehearsal progress.
+- **Member Management**: View ensemble members and filter them by instrumental section.
 
-### 后端
-- **Node.js** + **Express** - Web 服务框架
-- **Socket.io** - WebSocket 实时通信
-- **Prisma** + **SQLite** - ORM 和数据库
-- **Multer** - 文件上传处理
-- **WebRTC** (信令) - 低延迟音频分发
+### Musician Interface
 
-### 前端
-- **React** + **TypeScript** - UI 框架
-- **Vite** - 构建工具
-- **Tailwind CSS** - 样式
-- **Zustand** - 状态管理
-- **Socket.io-client** - WebSocket 客户端
-- **VexFlow** - 乐谱渲染引擎
-- **Lucide React** - 图标库
+- **Digital Scores**: View sheet music on a tablet or smartphone.
+- **Section-Specific Audio**: Listen to rehearsal cues for your own section through headphones.
+- **Live Annotations**: Receive the conductor’s annotations and text notes in real time.
+- **Audio Controls**: Adjust the volume of individual audio channels independently.
 
-## 快速开始
+## Technology Stack
 
-### 安装依赖
+### Backend
+
+- **Node.js** + **Express** — Web server framework
+- **Socket.io** — Real-time WebSocket communication
+- **Prisma** + **SQLite** — ORM and database
+- **Multer** — File upload handling
+- **WebRTC Signaling** — Signaling for low-latency audio distribution
+
+### Frontend
+
+- **React** + **TypeScript** — User interface framework
+- **Vite** — Build tool
+- **Tailwind CSS** — Styling
+- **Zustand** — State management
+- **Socket.io-client** — WebSocket client
+- **VexFlow** — Music notation rendering
+- **Lucide React** — Icon library
+
+## Quick Start
+
+### Install Dependencies
 
 ```bash
-# 安装根目录依赖
+# Install dependencies from the project root
 npm run install:all
 
-# 或者分别安装
+# Alternatively, install backend and frontend dependencies separately
 cd backend && npm install
 cd ../frontend && npm install
 ```
 
-### 初始化数据库
+### Initialize the Database
 
 ```bash
 cd backend
@@ -56,137 +62,164 @@ npx prisma migrate dev
 npx prisma generate
 ```
 
-### 启动开发服务器
+### Start the Development Servers
 
 ```bash
-# 同时启动前后端（从根目录）
+# Start both servers from the project root
 npm run dev
 
-# 或者分别启动
-# 后端
+# Alternatively, start each server separately
+
+# Backend
 cd backend && npm run dev
 
-# 前端
+# Frontend
 cd frontend && npm run dev
 ```
 
-### 访问应用
+### Access the Application
 
-- 前端：`http://localhost:5173`
-- 后端 API：`http://localhost:3001`
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3001`
 
-## 使用流程
+## Usage Workflow
 
-1. **创建乐团**（指挥）
-   - 访问首页，选择"我是指挥"
-   - 填写基本信息，创建乐团
-   - 添加乐团成员
+### 1. Create an Ensemble — Conductor
 
-2. **上传乐谱**（指挥）
-   - 进入指挥端界面
-   - 点击"上传乐谱"
-   - 选择 PDF 或 MusicXML 文件，可选上传参考音频
+- Open the homepage and select **“I’m a Conductor.”**
+- Enter the required information and create an ensemble.
+- Add ensemble members.
 
-3. **乐手加入**（乐手）
-   - 访问首页，选择"我是乐手"
-   - 输入乐团 ID 加入
-   - 等待指挥选择乐谱并开始排练
+### 2. Upload a Score — Conductor
 
-4. **开始排练**（指挥）
-   - 选择乐谱
-   - 使用标注工具在乐谱上标记
-   - 发送提示音给特定声部
-   - 控制排练开始/停止
+- Open the conductor interface.
+- Click **“Upload Score.”**
+- Select a PDF or MusicXML file.
+- Optionally upload a reference audio recording.
 
-## 项目结构
+### 3. Join the Ensemble — Musician
 
-```
+- Open the homepage and select **“I’m a Musician.”**
+- Enter the ensemble ID to join.
+- Wait for the conductor to select a score and start the rehearsal.
+
+### 4. Start Rehearsing — Conductor
+
+- Select a score.
+- Annotate the score using the annotation tools.
+- Send audio cues to specific instrumental sections.
+- Start and stop the rehearsal as needed.
+
+## Project Structure
+
+```text
 edu/
-├── backend/                # 后端服务
+├── backend/                 # Backend service
 │   ├── src/
-│   │   ├── index.ts       # 入口文件
-│   │   ├── socket/        # WebSocket 处理器
-│   │   ├── webrtc/        # WebRTC 信令
-│   │   └── routes/        # API 路由
-│   ├── prisma/            # 数据库模型
-│   └── uploads/           # 上传文件目录
-├── frontend/              # 前端应用
+│   │   ├── index.ts         # Application entry point
+│   │   ├── socket/          # WebSocket handlers
+│   │   ├── webrtc/          # WebRTC signaling
+│   │   └── routes/          # API routes
+│   ├── prisma/              # Database schema
+│   └── uploads/             # Uploaded files
+├── frontend/                # Frontend application
 │   ├── src/
-│   │   ├── pages/         # 页面组件
-│   │   ├── components/    # 组件
-│   │   ├── stores/        # 状态管理
-│   │   ├── types/         # TypeScript 类型
-│   │   └── utils/         # 工具函数
-│   └── public/            # 静态资源
-└── package.json           # 根配置
+│   │   ├── pages/           # Page components
+│   │   ├── components/      # Reusable components
+│   │   ├── stores/          # State management
+│   │   ├── types/           # TypeScript types
+│   │   └── utils/           # Utility functions
+│   └── public/              # Static assets
+└── package.json             # Root package configuration
 ```
 
-## API 接口
+## API Endpoints
 
-### 乐团管理
-- `GET /api/ensembles` - 获取乐团列表
-- `POST /api/ensembles` - 创建乐团
-- `GET /api/ensembles/:id` - 获取乐团详情
-- `POST /api/ensembles/:id/members` - 添加成员
+### Ensemble Management
 
-### 乐谱管理
-- `GET /api/scores` - 获取乐谱列表
-- `POST /api/scores` - 创建乐谱
-- `GET /api/scores/:id` - 获取乐谱详情
-- `GET /api/scores/:id/marks` - 获取乐谱标记
+| Method | Endpoint | Description |
+|:-------|:---------|:------------|
+| GET | `/api/ensembles` | List ensembles |
+| POST | `/api/ensembles` | Create an ensemble |
+| GET | `/api/ensembles/:id` | Get ensemble details |
+| POST | `/api/ensembles/:id/members` | Add an ensemble member |
 
-### 上传
-- `POST /api/upload/score` - 上传乐谱文件
-- `POST /api/upload/audio` - 上传音频文件
+### Score Management
 
-### 排练
-- `GET /api/rehearsals` - 获取排练记录
-- `POST /api/rehearsals/start` - 开始排练
-- `POST /api/rehearsals/:id/end` - 结束排练
+| Method | Endpoint | Description |
+|:-------|:---------|:------------|
+| GET | `/api/scores` | List scores |
+| POST | `/api/scores` | Create a score |
+| GET | `/api/scores/:id` | Get score details |
+| GET | `/api/scores/:id/marks` | Get score annotations |
 
-## WebSocket 事件
+### File Uploads
 
-### 客户端发送
-- `join-ensemble` - 加入乐团房间
-- `add-mark` - 添加标记
-- `send-cue` - 发送提示
-- `cursor-move` - 光标移动
-- `rehearsal-start` - 开始排练
-- `rehearsal-stop` - 停止排练
+| Method | Endpoint | Description |
+|:-------|:---------|:------------|
+| POST | `/api/upload/score` | Upload a score file |
+| POST | `/api/upload/audio` | Upload an audio file |
 
-### 服务器广播
-- `mark-added` - 新标记
-- `cue-received` - 收到提示
-- `member-joined` - 成员加入
-- `member-left` - 成员离开
-- `rehearsal-started` - 排练开始
-- `rehearsal-stopped` - 排练停止
+### Rehearsals
 
-## 技术特点
+| Method | Endpoint | Description |
+|:-------|:---------|:------------|
+| GET | `/api/rehearsals` | List rehearsal records |
+| POST | `/api/rehearsals/start` | Start a rehearsal |
+| POST | `/api/rehearsals/:id/end` | End a rehearsal |
 
-1. **实时协同标记**
-   - 基于 WebSocket 的实时同步
-   - 支持绘图、文字、高亮三种标记类型
-   - 可按声部定向发送标记
+## WebSocket Events
 
-2. **低延迟音频分发**
-   - WebRTC 音频流
-   - 目标延迟 < 50ms
-   - 支持分声部音量控制
+### Client Events
 
-3. **跨端支持**
-   - 响应式设计，适配平板和手机
-   - 支持 Web、iPad、Android Pad
-   - 触摸友好的操作界面
+| Event | Description |
+|:------|:------------|
+| `join-ensemble` | Join an ensemble room |
+| `add-mark` | Add an annotation |
+| `send-cue` | Send a rehearsal cue |
+| `cursor-move` | Send a cursor position update |
+| `rehearsal-start` | Start a rehearsal |
+| `rehearsal-stop` | Stop a rehearsal |
 
-## 后续规划
+### Server Broadcasts
 
-- [ ] AI 音准评分
-- [ ] 排练录音与复盘
-- [ ] 乐谱自动翻页
-- [ ] 小节线智能对齐
-- [ ] 离线模式支持
+| Event | Description |
+|:------|:------------|
+| `mark-added` | A new annotation has been added |
+| `cue-received` | A rehearsal cue has been received |
+| `member-joined` | A member has joined |
+| `member-left` | A member has left |
+| `rehearsal-started` | The rehearsal has started |
+| `rehearsal-stopped` | The rehearsal has stopped |
 
-## 许可证
+## Technical Highlights
 
-MIT License
+### Real-Time Collaborative Annotations
+
+- WebSocket-based synchronization.
+- Support for drawing, text, and highlighting.
+- Annotations can be directed to specific instrumental sections.
+
+### Low-Latency Audio Distribution
+
+- WebRTC audio streaming.
+- Target latency of less than **50 ms**.
+- Independent volume controls for section-specific audio.
+
+### Cross-Device Support
+
+- Responsive layouts for tablets and smartphones.
+- Browser-based access on desktop, iPad, and Android tablets.
+- Touch-friendly controls.
+
+## Roadmap
+
+- [ ] AI-assisted pitch accuracy assessment
+- [ ] Rehearsal recording and review
+- [ ] Automatic score page turning
+- [ ] Intelligent barline alignment
+- [ ] Offline mode
+
+## License
+
+MIT License.

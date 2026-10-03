@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Users } from 'lucide-react'
+import { apiFetch } from '../../utils/api'
+import { useAppStore } from '../../stores/appStore'
 
 interface Member {
   id: string
@@ -18,16 +20,30 @@ interface MemberListProps {
 export default function MemberList({ ensembleId, onSelectSection, selectedSection }: MemberListProps) {
   const [members, setMembers] = useState<Member[]>([])
   const [sections, setSections] = useState<string[]>([])
+  const ensemble = useAppStore((state) => state.currentEnsemble)
 
   useEffect(() => {
-    fetch(`/api/ensembles/${ensembleId}`)
-      .then(res => res.json())
+    let cancelled = false
+    apiFetch(`/api/ensembles/${ensembleId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('读取成员失败')
+        return res.json()
+      })
       .then(data => {
+        if (cancelled) return
         setMembers(data.members || [])
         const uniqueSections = [...new Set(data.members?.map((m: Member) => m.section).filter(Boolean))]
         setSections(uniqueSections as string[])
       })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [ensembleId])
+
+  useEffect(() => {
+    if (ensemble?.id !== ensembleId) return
+    setMembers(ensemble.members)
+    setSections([...new Set(ensemble.members.map((member) => member.section).filter((section): section is string => Boolean(section)))])
+  }, [ensemble, ensembleId])
 
   const groupedMembers = sections.reduce((acc, section) => {
     acc[section] = members.filter(m => m.section === section)

@@ -1,11 +1,15 @@
 import { create } from 'zustand'
-import { io, Socket } from 'socket.io-client'
-import type { User, Mark, CursorPosition } from '../types'
+import { io } from 'socket.io-client'
+import { realtimeConfig } from '../utils/api'
+import { WorkerSocket, type RealtimeSocket } from '../utils/workerSocket'
+import type { User, Mark, CursorPosition, RehearsalPosition, MistakeReport } from '../types'
 
-const API_URL = 'https://edutempo-api.wileymei3.workers.dev'
+
+let ensembleJoin: { ensembleId: string; memberId: string; role: string; section?: string } | undefined
+let audioJoin: typeof ensembleJoin
 
 interface SocketState {
-  socket: Socket | null
+  socket: RealtimeSocket | null
   isConnected: boolean
   isConnecting: boolean
   error: string | null
@@ -32,9 +36,12 @@ interface SocketState {
   sendCue: (cue: {
     type: 'CLICK' | 'COUNT_IN' | 'METRONOME' | 'DEMO_AUDIO'
     targetSection?: string
+    targetMemberId?: string
     measureNumber?: number
     bpm?: number
     audioUrl?: string
+    timeSignature?: string
+    stop?: boolean
   }) => void
   
   // 光标同步
@@ -43,7 +50,7 @@ interface SocketState {
   // 排练控制
   startRehearsal: (data: { scoreId: string; rehearsalId: string }) => void
   stopRehearsal: () => void
-  sendPosition: (position: { measure: number; beat: number }) => void
+  sendPosition: (position: RehearsalPosition) => void
   
   // WebRTC 信令
   sendWebRTCOffer: (to: string, signal: any) => void
@@ -68,12 +75,15 @@ interface SocketState {
     onRehearsalStarted?: (data: any) => void
     onRehearsalStopped?: () => void
     onPositionUpdated?: (data: any) => void
+    onMistakeReceived?: (data: MistakeReport) => void
     onWebRTCOffer?: (data: any) => void
     onWebRTCAnswer?: (data: any) => void
     onWebRTCIceCandidate?: (data: any) => void
     onAudioControl?: (control: any) => void
     onCueAudio?: (data: any) => void
-  }) => void
+    onScoreSelected?: (data: { scoreId: string }) => void
+    onPageChanged?: (data: { page: number; scoreId?: string }) => void
+  }) => () => void
 }
 
 export const useSocketStore = create<SocketState>((set, get) => ({
@@ -84,83 +94,69 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   roomMembers: [],
   
   connect: () => {
-    if (get().socket?.connected) return
-    
+    if (get().socket) return
     set({ isConnecting: true, error: null })
-    
-    const socket = io(API_URL, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    })
-    
+    const config = realtimeConfig()
+    const socket: RealtimeSocket = config.transport === 'websocket'
+      ? new WorkerSocket(config.url)
+      : io(config.url, { transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 5 })
     socket.on('connect', () => {
-      console.log('Socket 已连接:', socket.id)
-      set({ isConnected: true, isConnecting: false, error: null })
+      if (!(socket instanceof WorkerSocket) && ensembleJoin) {
+        socket.emit('join-ensemble', ensembleJoin)
+        if (audioJoin) socket.emit('join-audio-room', audioJoin)
+      }
     })
-    
-    socket.on('disconnect', () => {
-      console.log('Socket 已断开')
-      set({ isConnected: false })
-    })
-    
-    socket.on('connect_error', (error) => {
-      console.error('Socket 连接错误:', error)
-      set({ isConnecting: false, error: error.message })
-    })
-    
-    socket.on('error', (error) => {
-      console.error('Socket 错误:', error)
-      set({ error: error.message })
-    })
-    
+    socket.on('disconnect', () => set({ isConnected: false, isConnecting: false, roomMembers: [] }))
+    socket.on('connect_error', (error) => set({ isConnecting: false, error: error.message }))
+    socket.on('error', (error) => set({ error: error.message || '实时操作失败' }))
+    socket.on('room-members', (members) => set({ roomMembers: members, isConnected: true, isConnecting: false, error: null }))
+    socket.on('member-joined', (member) => set((state) => ({
+      roomMembers: [...state.roomMembers.filter(m => m.socketId !== member.socketId), member]
+    })))
+    socket.on('member-left', (data) => set((state) => ({
+      roomMembers: state.roomMembers.filter(m => m.socketId !== data.socketId)
+    })))
     set({ socket })
   },
-  
+
   disconnect: () => {
+    ensembleJoin = undefined
+    audioJoin = undefined
     const socket = get().socket
     if (socket) {
       socket.disconnect()
-      set({ socket: null, isConnected: false, roomMembers: [] })
+      set({ socket: null, isConnected: false, isConnecting: false, error: null, roomMembers: [] })
     }
   },
   
   joinEnsemble: (ensembleId: string, user: User) => {
     const socket = get().socket
-    if (!socket?.connected) {
-      console.error('Socket 未连接')
-      return
-    }
+    if (!socket) return
     
-    socket.emit('join-ensemble', {
-      ensembleId,
-      memberId: user.id,
-      role: user.role,
-      section: user.section
-    })
+    ensembleJoin = { ensembleId, memberId: user.id, role: user.role, section: user.section }
+    set({ isConnected: false, isConnecting: true })
+    if (socket instanceof WorkerSocket || socket.connected) socket.emit('join-ensemble', ensembleJoin)
   },
   
   leaveEnsemble: (ensembleId: string) => {
     const socket = get().socket
     if (socket) {
       socket.emit('leave-ensemble', ensembleId)
+      if (ensembleJoin?.ensembleId === ensembleId) ensembleJoin = undefined
+      set({ isConnected: false, roomMembers: [] })
     }
   },
   
   joinAudioRoom: (ensembleId: string, user: User) => {
     const socket = get().socket
-    if (!socket?.connected) return
+    if (!socket) return
     
-    socket.emit('join-audio-room', {
-      ensembleId,
-      memberId: user.id,
-      role: user.role,
-      section: user.section
-    })
+    audioJoin = { ensembleId, memberId: user.id, role: user.role, section: user.section }
+    if (socket instanceof WorkerSocket || socket.connected) socket.emit('join-audio-room', audioJoin)
   },
   
   leaveAudioRoom: () => {
+    audioJoin = undefined
     const socket = get().socket
     if (socket) {
       socket.emit('leave-audio-room')
@@ -246,83 +242,26 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   
   setupEventListeners: (callbacks) => {
     const socket = get().socket
-    if (!socket) return
-    
-    // 清除旧监听器
-    socket.off('mark-added')
-    socket.off('mark-deleted')
-    socket.off('cue-received')
-    socket.off('cursor-moved')
-    socket.off('member-joined')
-    socket.off('member-left')
-    socket.off('room-members')
-    socket.off('rehearsal-started')
-    socket.off('rehearsal-stopped')
-    socket.off('position-updated')
-    socket.off('webrtc-offer')
-    socket.off('webrtc-answer')
-    socket.off('webrtc-ice-candidate')
-    socket.off('audio-control')
-    socket.off('cue-audio')
-    
-    // 设置新监听器
-    if (callbacks.onMarkAdded) {
-      socket.on('mark-added', callbacks.onMarkAdded)
+    if (!socket) return () => {}
+    const events = {
+      onMarkAdded: 'mark-added', onMarkDeleted: 'mark-deleted', onCueReceived: 'cue-received',
+      onCursorMoved: 'cursor-moved', onMemberJoined: 'member-joined', onMemberLeft: 'member-left',
+      onRoomMembers: 'room-members', onRehearsalStarted: 'rehearsal-started',
+      onRehearsalStopped: 'rehearsal-stopped', onPositionUpdated: 'position-updated',
+      onWebRTCOffer: 'webrtc-offer', onWebRTCAnswer: 'webrtc-answer',
+      onWebRTCIceCandidate: 'webrtc-ice-candidate', onAudioControl: 'audio-control',
+      onCueAudio: 'cue-audio', onScoreSelected: 'score-selected', onPageChanged: 'page-changed',
+      onMistakeReceived: 'mistake-received'
+    } as const
+    const listeners: Array<[string, (data?: any) => void]> = []
+    for (const key of Object.keys(events) as Array<keyof typeof events>) {
+      const callback = callbacks[key]
+      if (callback) {
+        const listener = callback as (data?: any) => void
+        socket.on(events[key], listener)
+        listeners.push([events[key], listener])
+      }
     }
-    if (callbacks.onMarkDeleted) {
-      socket.on('mark-deleted', callbacks.onMarkDeleted)
-    }
-    if (callbacks.onCueReceived) {
-      socket.on('cue-received', callbacks.onCueReceived)
-    }
-    if (callbacks.onCursorMoved) {
-      socket.on('cursor-moved', callbacks.onCursorMoved)
-    }
-    if (callbacks.onMemberJoined) {
-      socket.on('member-joined', (member) => {
-        set((state) => ({
-          roomMembers: [...state.roomMembers, member]
-        }))
-        callbacks.onMemberJoined?.(member)
-      })
-    }
-    if (callbacks.onMemberLeft) {
-      socket.on('member-left', (data) => {
-        set((state) => ({
-          roomMembers: state.roomMembers.filter(m => m.socketId !== data.socketId)
-        }))
-        callbacks.onMemberLeft?.(data)
-      })
-    }
-    if (callbacks.onRoomMembers) {
-      socket.on('room-members', (members) => {
-        set({ roomMembers: members })
-        callbacks.onRoomMembers?.(members)
-      })
-    }
-    if (callbacks.onRehearsalStarted) {
-      socket.on('rehearsal-started', callbacks.onRehearsalStarted)
-    }
-    if (callbacks.onRehearsalStopped) {
-      socket.on('rehearsal-stopped', callbacks.onRehearsalStopped)
-    }
-    if (callbacks.onPositionUpdated) {
-      socket.on('position-updated', callbacks.onPositionUpdated)
-    }
-    if (callbacks.onWebRTCOffer) {
-      socket.on('webrtc-offer', callbacks.onWebRTCOffer)
-    }
-    if (callbacks.onWebRTCAnswer) {
-      socket.on('webrtc-answer', callbacks.onWebRTCAnswer)
-    }
-    if (callbacks.onWebRTCIceCandidate) {
-      socket.on('webrtc-ice-candidate', callbacks.onWebRTCIceCandidate)
-    }
-    if (callbacks.onAudioControl) {
-      socket.on('audio-control', callbacks.onAudioControl)
-    }
-    if (callbacks.onCueAudio) {
-      socket.on('cue-audio', callbacks.onCueAudio)
-    }
+    return () => { for (const [event, listener] of listeners) socket.off(event, listener) }
   }
 }))

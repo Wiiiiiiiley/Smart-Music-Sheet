@@ -1,57 +1,34 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
-import { prettyJSON } from 'hono/pretty-json'
-
 import { ensemblesRouter } from './routes/ensembles'
 import { scoresRouter } from './routes/scores'
 import { rehearsalsRouter } from './routes/rehearsals'
+import { uploadRouter } from './routes/upload'
+import { websocketHandler } from './websocket'
+import { FeatureError } from './features'
 
-export interface Env {
+export interface Env extends Record<string, unknown> {
   DB: D1Database
   CORS_ORIGIN: string
+  UPLOADS: R2Bucket
+  WEBSOCKET: DurableObjectNamespace
 }
-
-const app = new Hono()
-
-// 中间件
+export { WebSocketServer } from './websocket'
+const app = new Hono<{ Bindings: Env }>()
 app.use('*', logger())
-app.use('*', prettyJSON())
-
-// CORS
-app.use('*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-}))
-
-// 健康检查
-app.get('/health', (c) => {
-  return c.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    service: 'EduTempo API',
-  })
-})
-
-// API 路由
-app.route('/api/ensembles', ensemblesRouter as any)
-app.route('/api/scores', scoresRouter as any)
-app.route('/api/rehearsals', rehearsalsRouter as any)
-
-// 404
-app.notFound((c) => {
-  return c.json({ error: 'Not Found' }, 404)
-})
-
-// 错误处理
+// No cookies or credentials are used; wildcard CORS allows Pages previews and local clients.
+app.use('/api/*', cors({ origin: '*', allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization', 'Range'], exposeHeaders: ['Content-Length', 'Content-Range', 'Accept-Ranges', 'ETag'] }))
+app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'EduTempo API' }))
+app.get('/ws', websocketHandler)
+app.route('/api/ensembles', ensemblesRouter)
+app.route('/api/scores', scoresRouter)
+app.route('/api/rehearsals', rehearsalsRouter)
+app.route('/api/upload', uploadRouter)
+app.notFound(c => c.json({ error: 'Not Found' }, 404))
 app.onError((err, c) => {
-  console.error('Error:', err)
-  return c.json({
-    error: 'Internal Server Error',
-    message: err.message,
-  }, 500)
+  if (err instanceof FeatureError) return c.json({ error: err.message }, err.status as 400 | 403 | 404 | 409 | 500)
+  console.error('Request failed:', err.message)
+  return c.json({ error: err instanceof SyntaxError ? '请求数据格式错误' : '服务器处理请求失败' }, err instanceof SyntaxError ? 400 : 500)
 })
-
 export default app

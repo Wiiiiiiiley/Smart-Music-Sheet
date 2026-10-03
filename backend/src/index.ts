@@ -2,57 +2,39 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
+import path from 'path';
 import { setupSocketHandlers } from './socket/handlers';
 import { setupWebRTCHandlers } from './webrtc/handlers';
 import scoreRoutes from './routes/scores';
 import ensembleRoutes from './routes/ensembles';
 import rehearsalRoutes from './routes/rehearsals';
-import uploadRoutes from './routes/upload';
+import uploadRoutes, { uploadsDirectory } from './routes/upload';
 
-const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
+export { prisma } from './db';
+export const app = express();
+export const httpServer = createServer(app);
+const origins = (process.env.FRONTEND_URL || 'http://localhost:5173,http://127.0.0.1:5173').split(',').map(value => value.trim());
+export const io = new Server(httpServer, {
+  cors: { origin: origins, methods: ['GET', 'POST'], credentials: true }
 });
 
-export const prisma = new PrismaClient();
-
-// Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
-}));
+app.use(cors({ origin: origins, credentials: true }));
 app.use(express.json());
-
-// 静态文件服务
-app.use('/uploads', express.static('uploads'));
-
-// API Routes
+app.use('/uploads', express.static(path.resolve(uploadsDirectory)));
 app.use('/api/scores', scoreRoutes);
 app.use('/api/ensembles', ensembleRoutes);
 app.use('/api/rehearsals', rehearsalRoutes);
 app.use('/api/upload', uploadRoutes);
-
-// Socket.io handlers
 setupSocketHandlers(io);
 setupWebRTCHandlers(io);
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = error instanceof SyntaxError ? 400 : 500;
+  console.error('Request failed:', error.message);
+  res.status(status).json({ error: status === 400 ? '请求数据格式错误' : '服务器处理请求失败' });
 });
 
-const PORT = process.env.PORT || 3001;
-
-httpServer.listen(PORT, () => {
-  console.log(`🎼 EduTempo 后端服务运行在端口 ${PORT}`);
-  console.log(`📡 WebSocket 服务已启动`);
-  console.log(`🎤 WebRTC 信令服务已启动`);
-});
-
-export { io };
+if (require.main === module) {
+  const port = Number(process.env.PORT) || 3001;
+  httpServer.listen(port, () => console.log(`🎼 EduTempo 后端服务运行在端口 ${port}`));
+}

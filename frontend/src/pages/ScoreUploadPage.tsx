@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Upload, Music, FileText, X, Check } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
+import { apiFetch } from '../utils/api'
 
 export default function ScoreUploadPage() {
   const navigate = useNavigate()
-  const { currentEnsemble } = useAppStore()
+  const { currentEnsemble, setCurrentEnsemble, setCurrentScore } = useAppStore()
   
   const [title, setTitle] = useState('')
   const [composer, setComposer] = useState('')
@@ -13,14 +14,26 @@ export default function ScoreUploadPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!currentEnsemble) navigate('/setup', { replace: true })
+  }, [currentEnsemble, navigate])
+
+  const selectScoreFile = useCallback((file: File) => {
+    if (!/\.(pdf|xml|musicxml|mxl)$/i.test(file.name)) {
+      setError('请选择 PDF 或 MusicXML 乐谱文件')
+      return
+    }
+    setError('')
+    setScoreFile(file)
+  }, [])
 
   const onDropScore = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
-    if (file && (file.type === 'application/pdf' || file.name.endsWith('.xml') || file.name.endsWith('.mxl'))) {
-      setScoreFile(file)
-    }
-  }, [])
+    if (file) selectScoreFile(file)
+  }, [selectScoreFile])
 
   const onDropAudio = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -32,7 +45,7 @@ export default function ScoreUploadPage() {
 
   const handleScoreFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) setScoreFile(file)
+    if (file) selectScoreFile(file)
   }
 
   const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +58,7 @@ export default function ScoreUploadPage() {
 
     setIsUploading(true)
     setUploadProgress(0)
+    setError('')
 
     try {
       // 上传文件
@@ -52,7 +66,7 @@ export default function ScoreUploadPage() {
       formData.append('score', scoreFile)
       if (audioFile) formData.append('audio', audioFile)
 
-      const uploadResponse = await fetch('/api/upload/both', {
+      const uploadResponse = await apiFetch('/api/upload/both', {
         method: 'POST',
         body: formData
       })
@@ -60,9 +74,11 @@ export default function ScoreUploadPage() {
       if (!uploadResponse.ok) throw new Error('文件上传失败')
 
       const uploadResult = await uploadResponse.json()
+      if (!uploadResult.score?.fileUrl) throw new Error('服务器未返回乐谱文件地址')
+      setUploadProgress(65)
 
       // 创建乐谱记录
-      const scoreResponse = await fetch('/api/scores', {
+      const scoreResponse = await apiFetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -78,12 +94,18 @@ export default function ScoreUploadPage() {
       if (!scoreResponse.ok) throw new Error('创建乐谱失败')
 
       const score = await scoreResponse.json()
+      setCurrentScore({ ...score, marks: score.marks || [], measures: score.measures || [] })
+      setCurrentEnsemble({
+        ...currentEnsemble,
+        scores: [score, ...currentEnsemble.scores.filter((existing) => existing.id !== score.id)],
+      })
+      setUploadProgress(100)
 
       // 跳转到乐谱页面
       navigate(`/conductor/score/${score.id}`)
     } catch (error) {
       console.error('上传失败:', error)
-      alert('上传失败，请重试')
+      setError(error instanceof Error ? error.message : '上传失败，请重试')
     } finally {
       setIsUploading(false)
     }
@@ -106,6 +128,7 @@ export default function ScoreUploadPage() {
       {/* Content */}
       <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
         <div className="panel p-6 space-y-6">
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           {/* 曲目信息 */}
           <div className="space-y-4">
             <div>
@@ -165,7 +188,7 @@ export default function ScoreUploadPage() {
                 <label className="btn-secondary inline-block cursor-pointer">
                   <input
                     type="file"
-                    accept=".pdf,.xml,.mxl,application/pdf,application/vnd.recordare.musicxml"
+                    accept=".pdf,.xml,.musicxml,.mxl,application/pdf,application/vnd.recordare.musicxml"
                     onChange={handleScoreFileChange}
                     className="hidden"
                   />
@@ -240,7 +263,7 @@ export default function ScoreUploadPage() {
             </button>
             <button
               onClick={handleUpload}
-              disabled={!title.trim() || !scoreFile || isUploading}
+              disabled={!title.trim() || !scoreFile || !currentEnsemble || isUploading}
               className="flex-1 btn-conductor flex items-center justify-center gap-2"
             >
               {isUploading ? (

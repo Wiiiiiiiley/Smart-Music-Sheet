@@ -1,11 +1,13 @@
 import { Volume2, VolumeX, Headphones } from 'lucide-react'
 import { useAppStore } from '../../stores/appStore'
+import SectionTracks from '../audio/SectionTracks'
+import CueHistory from '../audio/CueHistory'
 
 export default function AudioMixer() {
   const { masterVolume, setMasterVolume, sectionVolumes, setSectionVolume } = useAppStore()
 
   const sections = [
-    { id: 'conductor', name: '指挥' },
+    { id: 'live', name: '指挥讲话' },
     { id: 'metronome', name: '节拍器' },
     { id: 'demo', name: '示范音频' },
   ]
@@ -68,6 +70,9 @@ export default function AudioMixer() {
           )
         })}
       </div>
+
+      <SectionTracks />
+      <CueHistory />
 
       {/* 提示 */}
       <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">

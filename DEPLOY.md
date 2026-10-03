@@ -1,232 +1,73 @@
-# Cloudflare Pages 部署指南
+# EduTempo 部署
 
-## 架构
+支持两个后端，前端必须同时连接同一个后端的 API 和实时服务。
 
-```
-┌─────────────────┐      ┌──────────────────┐      ┌─────────────┐
-│  Cloudflare     │      │  Cloudflare      │      │  Cloudflare │
-│  Pages          │──────│  Workers (API)     │──────│  D1 (DB)    │
-│  (前端静态托管)  │      │  (WebSocket/API) │      │             │
-└─────────────────┘      └──────────────────┘      └─────────────┘
-                                │
-                                ▼
-                         ┌─────────────┐
-                         │  R2 (存储)  │
-                         │  乐谱/音频   │
-                         └─────────────┘
-```
+## Cloudflare Pages + Workers（现有部署）
 
-## 1. 准备工作
+Worker 使用 D1 保存乐团、乐谱、批注和排练；R2 保存文件；Durable Object 管理每个乐团的实时房间。它的 `/ws` 是原生 WebSocket，消息格式为 `{event, data}`，不可连接 Socket.IO 客户端。
 
-### 安装 Wrangler CLI
-```bash
-npm install -g wrangler
-```
-
-### 登录 Cloudflare
-```bash
-wrangler login
-```
-
-## 2. 创建 Cloudflare 资源
-
-### 创建 D1 数据库
-```bash
-wrangler d1 create edutempo-db
-```
-记录返回的 `database_id`，填入 `backend-wrangler/wrangler.toml`
-
-### 创建 R2 存储桶
-```bash
-wrangler r2 bucket create edutempo-uploads
-```
-
-### 创建 KV 命名空间
-```bash
-wrangler kv:namespace create "KV"
-```
-记录返回的 `id`，填入 `backend-wrangler/wrangler.toml`
-
-## 3. 数据库迁移
-
-### 创建表结构
-在 `backend-wrangler` 目录下执行：
-```bash
-wrangler d1 migrations create edutempo-db init
-```
-
-创建迁移文件 `migrations/0001_init.sql`：
-```sql
-CREATE TABLE Ensemble (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  conductorId TEXT NOT NULL,
-  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE Member (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL,
-  instrument TEXT,
-  section TEXT,
-  ensembleId TEXT NOT NULL,
-  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (ensembleId) REFERENCES Ensemble(id) ON DELETE CASCADE
-);
-
-CREATE TABLE Score (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  composer TEXT,
-  fileUrl TEXT NOT NULL,
-  fileType TEXT NOT NULL,
-  audioUrl TEXT,
-  ensembleId TEXT NOT NULL,
-  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (ensembleId) REFERENCES Ensemble(id) ON DELETE CASCADE
-);
-
-CREATE TABLE Measure (
-  id TEXT PRIMARY KEY,
-  number INTEGER NOT NULL,
-  scoreId TEXT NOT NULL,
-  startTime REAL,
-  endTime REAL,
-  FOREIGN KEY (scoreId) REFERENCES Score(id) ON DELETE CASCADE
-);
-
-CREATE TABLE Mark (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  data TEXT NOT NULL,
-  x REAL NOT NULL,
-  y REAL NOT NULL,
-  width REAL,
-  height REAL,
-  page INTEGER NOT NULL,
-  measureId TEXT,
-  scoreId TEXT NOT NULL,
-  creatorId TEXT NOT NULL,
-  targetSection TEXT,
-  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (scoreId) REFERENCES Score(id) ON DELETE CASCADE,
-  FOREIGN KEY (creatorId) REFERENCES Member(id)
-);
-
-CREATE TABLE Cue (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  measureId TEXT NOT NULL,
-  targetSection TEXT,
-  audioUrl TEXT,
-  bpm INTEGER,
-  timeSignature TEXT,
-  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (measureId) REFERENCES Measure(id) ON DELETE CASCADE
-);
-
-CREATE TABLE Rehearsal (
-  id TEXT PRIMARY KEY,
-  ensembleId TEXT NOT NULL,
-  scoreId TEXT,
-  startedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  endedAt DATETIME,
-  recordingUrl TEXT,
-  FOREIGN KEY (ensembleId) REFERENCES Ensemble(id) ON DELETE CASCADE,
-  FOREIGN KEY (scoreId) REFERENCES Score(id)
-);
-
-CREATE TABLE RehearsalEvent (
-  id TEXT PRIMARY KEY,
-  rehearsalId TEXT NOT NULL,
-  type TEXT NOT NULL,
-  data TEXT,
-  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (rehearsalId) REFERENCES Rehearsal(id) ON DELETE CASCADE
-);
-
-CREATE INDEX idx_member_ensemble ON Member(ensembleId);
-CREATE INDEX idx_score_ensemble ON Score(ensembleId);
-CREATE INDEX idx_measure_score ON Measure(scoreId);
-CREATE INDEX idx_mark_score ON Mark(scoreId);
-CREATE INDEX idx_rehearsal_ensemble ON Rehearsal(ensembleId);
-```
-
-### 执行迁移
-```bash
-wrangler d1 migrations apply edutempo-db
-```
-
-## 4. 部署后端 (Workers)
+1. 在 `backend-wrangler/wrangler.toml` 填入 D1 数据库 ID、R2 桶名。保持 `WEBSOCKET` binding、导出的 `WebSocketServer` 和 `v1` SQLite Durable Object migration。
+2. 安装并迁移、发布后端：
 
 ```bash
+npm ci
+npm --prefix backend-wrangler ci
 cd backend-wrangler
-npm install
-wrangler deploy
+npx wrangler d1 migrations apply edutempo-db --remote
+npx wrangler deploy
+cd ..
 ```
 
-记录部署后的 Workers URL，例如：
-`https://edutempo-api.your-subdomain.workers.dev`
+3. 将 `frontend/.env.production.example` 复制为 `frontend/.env.production`，填入实际 Worker URL。已有生产配置保留即可。
 
-## 5. 配置前端
-
-### 更新环境变量
-编辑 `frontend/.env.production`：
-```
-VITE_API_URL=https://edutempo-api.your-subdomain.workers.dev
-VITE_WS_URL=wss://edutempo-api.your-subdomain.workers.dev
+```dotenv
+VITE_API_URL=https://your-api.workers.dev
+VITE_WS_URL=wss://your-api.workers.dev/ws
+VITE_REALTIME_TRANSPORT=websocket
 ```
 
-### 更新 wrangler.toml
-编辑 `frontend/wrangler.toml`，填入实际的 Workers URL：
-```toml
-[env.production.vars]
-VITE_API_URL = "https://edutempo-api.your-subdomain.workers.dev"
-VITE_WS_URL = "wss://edutempo-api.your-subdomain.workers.dev"
-```
+4. 构建并发布前端：
 
-## 6. 部署前端 (Pages)
-
-### 方式一：Wrangler CLI
 ```bash
+npm run build:frontend
 cd frontend
-npm install
-npm run build
-wrangler pages deploy dist
+npx wrangler pages deploy dist --project-name edutempo
 ```
 
-### 方式二：Git 集成 (推荐)
-1. 推送代码到 GitHub
-2. 在 Cloudflare Dashboard 中创建 Pages 项目
-3. 连接 GitHub 仓库
-4. 构建设置：
-   - 构建命令：`npm run build`
-   - 构建输出：`dist`
-   - 根目录：`frontend`
+Vite 环境变量在构建时写入静态 JS。`wrangler.toml` 的运行时 vars 不能改变已构建文件的地址。Pages Git 构建时应配置对应构建环境变量，根目录选仓库根、命令 `npm run build:frontend`、输出目录 `frontend/dist`。
 
-## 7. 自定义域名 (可选)
+上传返回 Worker 自身的 `/api/upload/files/...` 地址，由 R2 绑定读取，无需公开 R2 桶域名。PDF CMaps、标准字体和 worker 脚本随前端构建发布。
 
-### 前端域名
-1. 在 Pages 项目设置中添加自定义域名
-2. 按照 Cloudflare 提示配置 DNS
+## Express + Socket.IO
 
-### 后端域名
-1. 在 Workers 设置中添加自定义域名
-2. 更新前端的 API_URL 为新域名
+适合本地开发或具有 Node.js 服务的托管平台。配置 `DATABASE_URL`、`PORT`、`FRONTEND_URL`，执行 Prisma migration，构建并运行 `backend/dist/index.js`。数据库和 `backend/uploads` 必须放在持久存储中；生产 SQLite 不应存放于临时容器目录。
 
-## 注意事项
+前端构建变量使用同一个 Express 服务：
 
-1. **WebSocket**: Workers 支持 WebSocket，但需要通过 Durable Objects 实现
-2. **文件上传**: R2 存储的文件可以通过自定义域名访问，需要配置 public URL
-3. **CORS**: 确保 Workers 的 CORS 设置允许你的 Pages 域名
-4. **环境变量**: 敏感信息（如 JWT_SECRET）使用 `wrangler secret put` 设置
+```dotenv
+VITE_API_URL=https://your-node-backend.example.com
+VITE_WS_URL=https://your-node-backend.example.com
+VITE_REALTIME_TRANSPORT=socketio
+```
 
-## 故障排查
+代理需要支持 `/socket.io` WebSocket 升级及 `/uploads` 静态文件。HTTPS 前端必须使用 HTTPS/WSS 后端。
 
-- 检查 Workers 日志：`wrangler tail`
-- 检查 D1 数据库：`wrangler d1 execute edutempo-db --command="SELECT * FROM Ensemble"`
-- 检查 R2 存储：`wrangler r2 object list edutempo-uploads`
+## 验证
+
+检查 `/health`，创建乐团、复制乐团 ID，上传 PDF/MusicXML/MXL。在另一台设备以乐手加入，测试换谱、翻页、批注、声部提示、排练开始/停止及断线重连。
+
+浏览器首次播放音频需要乐手点击“启用提示音”，接收讲话时点击“接收指挥音频”。指挥在“实时语音通道”点击“开启麦克风”。实时讲话使用实际 WebRTC 音频轨道，WebSocket 负责 SDP / ICE 信令。HTTPS 和麦克风权限是远程设备使用语音与录音的前提。
+
+## WebRTC 跨网配置
+
+默认 ICE 使用 STUN。限制严格的 NAT / 防火墙环境需配置可达的 TURN，构建前设置 `VITE_ICE_SERVERS` 为 JSON 数组：
+
+```dotenv
+VITE_ICE_SERVERS='[{"urls":"stun:your-stun.example.com:3478"},{"urls":["turn:your-turn.example.com:3478?transport=udp","turns:your-turn.example.com:5349?transport=tcp"],"username":"temporary-user","credential":"temporary-credential"}]'
+```
+
+所有 `VITE_` 变量会包含在前端文件中；填写服务颁发的短期凭证，不要填写 TURN 服务管理密钥。此版本读取构建时的 ICE 配置，短期凭证到期需更新配置；长期公网部署应扩展后端短期凭证签发接口。
+
+每位乐手与指挥建立独立音频连接。现场容量取决于指挥设备和上行带宽；大型乐团需先在目标人数下测量。面板显示真实 RTT、抖动和平均抖动缓冲时间，RTT 不等于端到端单程音频延迟。低于 50 ms 的目标需要在实际设备、耳机和网络环境中测量。
+
+部署新功能时先备份 SQLite / D1，再应用新增的协作功能 migration；不要用 `db push --force-reset` 覆盖现有数据。本地 `npm run db:setup` 或 `npm run dev:backend` 会执行保留数据的 Prisma migration。Worker 需执行前文的 D1 migration。音轨、小节框和私密批注依赖这些新增字段。

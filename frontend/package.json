@@ -7,21 +7,26 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "predev": "node ../scripts/prepare-pdf-assets.cjs",
+    "prebuild": "node ../scripts/prepare-pdf-assets.cjs"
   },
   "dependencies": {
+    "clsx": "^2.0.0",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.303.0",
+    "musicxml-interfaces": "^0.0.13",
+    "opensheetmusicdisplay": "^1.9.2",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.1",
-    "socket.io-client": "^4.7.4",
-    "vexflow": "^4.2.4",
-    "musicxml-interfaces": "^0.0.13",
-    "zustand": "^4.4.7",
-    "lucide-react": "^0.303.0",
-    "clsx": "^2.0.0",
-    "tailwind-merge": "^2.2.0",
     "simple-peer": "^9.11.1",
-    "wavesurfer.js": "^7.7.0"
+    "socket.io-client": "^4.7.4",
+    "tailwind-merge": "^2.2.0",
+    "vexflow": "^4.2.4",
+    "wavesurfer.js": "^7.7.0",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

@@ -1,1 +1,11 @@
 node_modules
+.env
+.env.*
+!.env.example
+!.env.production.example
+frontend/public/pdfjs/
+backend/dist/
+dist/
+backend/uploads/
+backend/prisma/*.db*
+**/.wrangler/

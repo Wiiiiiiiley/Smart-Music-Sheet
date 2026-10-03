@@ -20,6 +20,13 @@ CORS_ORIGIN = "https://edutempo.pages.dev"
 # JWT_SECRET = "your-jwt-secret"
 
 # R2 需要在 Dashboard 中启用后取消注释
-# [[r2_buckets]]
-# binding = "UPLOADS"
-# bucket_name = "edutempo-uploads"
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "edutempo-uploads"
+
+[durable_objects]
+bindings = [{ name = "WEBSOCKET", class_name = "WebSocketServer" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WebSocketServer"]

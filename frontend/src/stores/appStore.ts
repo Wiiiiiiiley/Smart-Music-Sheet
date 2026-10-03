@@ -25,6 +25,8 @@ interface AppState {
   
   // 标记列表
   marks: Mark[]
+  liveMarks: Record<string, Mark>
+  deletedMarkIds: Record<string, boolean>
   addMark: (mark: Mark) => void
   removeMark: (markId: string) => void
   setMarks: (marks: Mark[]) => void
@@ -37,7 +39,8 @@ interface AppState {
   // 排练状态
   isRehearsing: boolean
   rehearsalStartTime: Date | null
-  startRehearsal: () => void
+  currentRehearsalId: string | null
+  startRehearsal: (rehearsalId?: string, startedAt?: string) => void
   stopRehearsal: () => void
   
   // 音频设置
@@ -59,31 +62,65 @@ export const useAppStore = create<AppState>()(
       
       // 乐团
       currentEnsemble: null,
-      setCurrentEnsemble: (ensemble) => set({ currentEnsemble: ensemble }),
+      setCurrentEnsemble: (ensemble) => set((state) => ({
+        currentEnsemble: ensemble,
+        ...(state.currentEnsemble?.id !== ensemble?.id || (state.currentScore && state.currentScore.ensembleId !== ensemble?.id) ? {
+          currentScore: null, marks: [], currentPage: 1, currentMeasure: 1,
+          liveMarks: {}, deletedMarkIds: {},
+          cursorPositions: {}, isRehearsing: false, rehearsalStartTime: null,
+          currentRehearsalId: null,
+        } : {}),
+      })),
       
       // 乐谱
       currentScore: null,
-      setCurrentScore: (score) => set({ currentScore: score }),
+      setCurrentScore: (score) => set((state) => ({
+        currentScore: score,
+        // An HTTP snapshot may arrive after newer socket edits or deletions.
+        marks: score ? Array.from(new Map([
+          ...(score.marks || []),
+          ...Object.values(state.liveMarks).filter((mark) => mark.scoreId === score.id),
+        ].filter((mark) => !state.deletedMarkIds[mark.id]).map((mark) => [mark.id, mark])).values()) : [],
+        ...(state.currentScore?.id !== score?.id ? { currentPage: 1, currentMeasure: 1 } : {}),
+      })),
       
       // 页面
       currentPage: 1,
-      setCurrentPage: (page) => set({ currentPage: page }),
+      setCurrentPage: (page) => set({ currentPage: Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1 }),
       
       // 小节
       currentMeasure: 1,
-      setCurrentMeasure: (measure) => set({ currentMeasure: measure }),
+      setCurrentMeasure: (measure) => set({ currentMeasure: Number.isFinite(measure) ? Math.max(1, Math.floor(measure)) : 1 }),
       
       // 标记
       marks: [],
-      addMark: (mark) => set((state) => ({ marks: [...state.marks, mark] })),
-      removeMark: (markId) => set((state) => ({ marks: state.marks.filter((m: any) => m.id !== markId) })),
+      liveMarks: {},
+      deletedMarkIds: {},
+      addMark: (mark) => set((state) => ({
+        liveMarks: { ...state.liveMarks, [mark.id]: mark },
+        deletedMarkIds: { ...state.deletedMarkIds, [mark.id]: false },
+        marks: mark.scoreId === state.currentScore?.id
+          ? [...state.marks.filter((existing) => existing.id !== mark.id), mark]
+          : state.marks,
+      })),
+      removeMark: (markId) => set((state) => ({
+        marks: state.marks.filter((m) => m.id !== markId),
+        deletedMarkIds: { ...state.deletedMarkIds, [markId]: true },
+      })),
       setMarks: (marks) => set({ marks }),
       clearState: () => set({
         currentUser: null,
         currentEnsemble: null,
         currentScore: null,
         marks: [],
+        liveMarks: {},
+        deletedMarkIds: {},
         currentPage: 1,
+        currentMeasure: 1,
+        cursorPositions: {},
+        isRehearsing: false,
+        rehearsalStartTime: null,
+        currentRehearsalId: null,
       }),
       
       // 光标位置
@@ -103,13 +140,16 @@ export const useAppStore = create<AppState>()(
       // 排练状态
       isRehearsing: false,
       rehearsalStartTime: null,
-      startRehearsal: () => set({ 
+      currentRehearsalId: null,
+      startRehearsal: (rehearsalId, startedAt) => set({ 
         isRehearsing: true, 
-        rehearsalStartTime: new Date() 
+        rehearsalStartTime: startedAt ? new Date(startedAt) : new Date(),
+        currentRehearsalId: rehearsalId || null,
       }),
       stopRehearsal: () => set({ 
         isRehearsing: false, 
-        rehearsalStartTime: null 
+        rehearsalStartTime: null,
+        currentRehearsalId: null,
       }),
       
       // 音频设置

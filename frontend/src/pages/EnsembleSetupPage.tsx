@@ -1,20 +1,21 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, Plus, Trash2 } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
-import { useSocketStore } from '../stores/socketStore'
 import { v4 as uuidv4 } from '../utils/uuid'
+import { apiFetch } from '../utils/api'
 
 export default function EnsembleSetupPage() {
   const navigate = useNavigate()
-  const { currentUser, setCurrentEnsemble } = useAppStore()
-  const { connect, joinEnsemble } = useSocketStore()
+  const { currentUser, setCurrentUser, setCurrentEnsemble } = useAppStore()
   
   const [ensembleName, setEnsembleName] = useState('')
   const [members, setMembers] = useState<Array<{ id: string; name: string; section: string }>>([])
   const [newMemberName, setNewMemberName] = useState('')
   const [newMemberSection, setNewMemberSection] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState('')
+  const createdEnsembleRef = useRef<{ id: string; conductorId: string } | null>(null)
 
   const handleAddMember = () => {
     if (!newMemberName.trim()) return
@@ -36,54 +37,55 @@ export default function EnsembleSetupPage() {
     if (!ensembleName.trim() || !currentUser) return
     
     setIsCreating(true)
+    setError('')
     
     try {
       // 创建乐团
-      const response = await fetch('/api/ensembles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: ensembleName.trim(),
-          conductorId: currentUser.id
-        })
-      })
-      
-      if (!response.ok) throw new Error('创建乐团失败')
-      
-      const ensemble = await response.json()
-      
-      // 添加成员
-      for (const member of members) {
-        await fetch(`/api/ensembles/${ensemble.id}/members`, {
+      let ensemble = createdEnsembleRef.current
+      if (!ensemble) {
+        const response = await apiFetch('/api/ensembles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            name: ensembleName.trim(),
+            conductorId: currentUser.id,
+            conductorName: currentUser.name,
+          })
+        })
+        if (!response.ok) throw new Error('创建乐团失败')
+        ensemble = await response.json()
+        createdEnsembleRef.current = ensemble
+      }
+      if (!ensemble) throw new Error('创建乐团失败')
+      setCurrentUser({ ...currentUser, id: ensemble.conductorId, ensembleId: ensemble.id })
+      
+      // 添加成员
+      for (const member of members) {
+        const memberResponse = await apiFetch(`/api/ensembles/${ensemble.id}/members`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: member.id,
             name: member.name,
             role: 'PLAYER',
             section: member.section,
             instrument: member.section
           })
         })
+        if (!memberResponse.ok) throw new Error(`添加成员 ${member.name} 失败，请重试`)
       }
       
       // 获取完整的乐团信息
-      const fullEnsembleResponse = await fetch(`/api/ensembles/${ensemble.id}`)
+      const fullEnsembleResponse = await apiFetch(`/api/ensembles/${ensemble.id}`)
+      if (!fullEnsembleResponse.ok) throw new Error('读取乐团信息失败，请重试')
       const fullEnsemble = await fullEnsembleResponse.json()
       
       setCurrentEnsemble(fullEnsemble)
       
-      // 连接 Socket
-      connect()
-      
-      // 加入乐团房间
-      setTimeout(() => {
-        joinEnsemble(ensemble.id, currentUser)
-      }, 500)
-      
       navigate('/conductor')
     } catch (error) {
       console.error('创建乐团失败:', error)
-      alert('创建乐团失败，请重试')
+      setError(error instanceof Error ? error.message : '创建乐团失败，请重试')
     } finally {
       setIsCreating(false)
     }
@@ -106,6 +108,7 @@ export default function EnsembleSetupPage() {
       {/* Content */}
       <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
         <div className="panel p-6 space-y-6">
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           {/* 乐团名称 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

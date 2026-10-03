@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, User, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
+import { useSocketStore } from '../stores/socketStore'
 import { v4 as uuidv4 } from '../utils/uuid'
 
 export default function RoleSelectPage() {
   const navigate = useNavigate()
-  const { setCurrentUser } = useAppStore()
+  const { setCurrentUser, clearState } = useAppStore()
+  const { disconnect } = useSocketStore()
   const [step, setStep] = useState<'role' | 'info'>('role')
   const [selectedRole, setSelectedRole] = useState<'CONDUCTOR' | 'PLAYER' | null>(null)
   const [name, setName] = useState('')
@@ -30,6 +32,8 @@ export default function RoleSelectPage() {
       section: section.trim() || undefined,
     }
 
+    disconnect()
+    clearState()
     setCurrentUser(user)
     
     if (selectedRole === 'CONDUCTOR') {

@@ -1,0 +1,16 @@
+.notation-editor .notation-header-button{display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .65rem;border-radius:.4rem;background-color:#1e293b;font-size:.8rem;white-space:nowrap}
+.notation-editor .notation-header-button:hover{background-color:#334155}
+.notation-editor .notation-header-button:disabled{opacity:.4;cursor:not-allowed}
+.notation-field{display:flex;flex-direction:column;gap:.2rem;font-size:.72rem;color:#64748b}
+.notation-field input,.notation-field select{border:1px solid #cbd5e1;border-radius:.35rem;padding:.4rem .5rem;font-size:.85rem;color:#172033;min-width:0;background:white}
+.notation-tools>button{display:inline-flex;align-items:center;gap:.3rem;padding:.45rem .5rem;border:1px solid #e2e8f0;border-radius:.4rem;font-size:.75rem;color:#334155}
+.notation-tools>button:hover{background:#f1f5f9}.notation-tools>button.active{background:#2563eb;color:#fff;border-color:#2563eb}
+.notation-tools>button:disabled,.notation-small-button:disabled{opacity:.35;cursor:not-allowed}
+.notation-tools small{font-size:.55rem;opacity:.65}
+.notation-small-button{border:1px solid #cbd5e1;padding:.25rem .5rem;border-radius:.3rem;background:#fff;font-size:.75rem;white-space:nowrap}
+.notation-piano button{flex:1;background:linear-gradient(#fff,#f1f5f9);border:1px solid #cbd5e1;border-radius:0 0 .3rem .3rem;min-height:4rem;font-size:.75rem;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:.4rem}
+.notation-piano button:hover{background:#dbeafe}.notation-piano small{font-size:.55rem;color:#64748b}
+.notation-score-scroll{background-color:#e2e8f0;background-image:radial-gradient(#cbd5e1 .6px,transparent .6px);background-size:12px 12px}
+@media(min-width:900px){.notation-main{height:calc(100dvh - 270px);min-height:500px}}
+@media(max-width:700px){.notation-main{flex-direction:column;flex:none}.notation-sidebar{width:100%;max-height:275px;border-right:0;border-bottom:1px solid #cbd5e1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;flex:none}.notation-sidebar>div{margin-top:0!important}.notation-score-scroll{max-height:70dvh}.notation-field input{max-width:100%}}
+@media print{.notation-editor>header,.notation-editor>.notation-tools,.notation-editor>div:not(.notation-main),.notation-sidebar,.notation-main section>div:first-child,.notation-main footer{display:none}.notation-score-scroll{padding:0;background:white;overflow:visible}.notation-main{display:block;height:auto}.notation-score-scroll>div{box-shadow:none}}

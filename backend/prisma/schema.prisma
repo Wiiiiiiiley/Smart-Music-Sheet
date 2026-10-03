@@ -39,6 +39,8 @@ model Score {
   fileUrl      String   // PDF 或 MusicXML 文件路径
   fileType     String   // "pdf" | "musicxml"
   audioUrl     String?  // 参考音频
+  audioTracks  String   @default("[]")
+  measureRegions String @default("[]")
   ensembleId   String
   ensemble     Ensemble @relation(fields: [ensembleId], references: [id], onDelete: Cascade)
   
@@ -75,8 +77,11 @@ model Mark {
   creatorId   String
   creator     Member   @relation(fields: [creatorId], references: [id])
   targetSection String? // 目标声部，null表示全体
+  targetMemberId String?
+  private     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  @@index([targetMemberId])
 }
 
 model Cue {

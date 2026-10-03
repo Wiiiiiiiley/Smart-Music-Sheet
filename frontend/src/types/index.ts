@@ -39,10 +39,51 @@ export interface Score {
   fileUrl: string
   fileType: 'pdf' | 'musicxml'
   audioUrl?: string
+  audioTracks?: AudioTrack[]
+  measureRegions?: MeasureRegion[]
   ensembleId: string
   measures: Measure[]
   marks: Mark[]
   createdAt: string
+}
+
+export interface AudioTrack {
+  id: string
+  label: string
+  section?: string
+  audioUrl: string
+  volume?: number
+}
+
+export interface MeasureRegion {
+  number: number
+  page: number
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface RehearsalPosition {
+  scoreId: string
+  measure: number
+  beat?: number
+  bpm?: number
+  beatsPerMeasure?: number
+  running?: boolean
+  startedAt?: number
+  entryMeasures?: Record<string, number>
+}
+
+export interface MistakeReport {
+  id: string
+  scoreId: string
+  measure: number
+  kind: string
+  note: string
+  targetSection?: string
+  targetMemberId?: string
+  timestamp: number
 }
 
 // 小节
@@ -76,6 +117,8 @@ export interface Mark {
     section?: string
   }
   targetSection?: string // 目标声部
+  targetMemberId?: string
+  private?: boolean
   measureId?: string
   createdAt: string
 }
@@ -89,6 +132,7 @@ export interface Cue {
   type: CueType
   measureId: string
   targetSection?: string
+  targetMemberId?: string
   audioUrl?: string
   bpm?: number
   timeSignature?: string

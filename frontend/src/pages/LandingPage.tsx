@@ -75,8 +75,8 @@ export default function LandingPage() {
             />
             <FeatureCard 
               icon={<Music className="w-8 h-8 text-primary-600" />}
-              title="智能对齐"
-              description="自动对齐小节线，生成“还有 X 小节进入”提示"
+              title="乐谱分页"
+              description="显示 PDF、MusicXML 和 MXL 乐谱，按实际页数翻页"
             />
           </div>
         </div>
@@ -97,7 +97,7 @@ export default function LandingPage() {
             <Step 
               number={2}
               title="上传乐谱"
-              description="支持 PDF 和 MusicXML 格式，自动解析小节线"
+              description="支持 PDF、MusicXML 和 MXL 格式，可附带参考音频"
             />
             <Step 
               number={3}

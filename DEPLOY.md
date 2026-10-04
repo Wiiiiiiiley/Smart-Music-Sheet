@@ -52,6 +52,34 @@ Vite 环境变量在构建时写入静态 JS。`wrangler.toml` 的运行时 vars
 
 Pages Git 构建只发布前端，不会自动迁移 D1 或发布 `backend-wrangler`。更新协作功能后，仍需执行上面的 Worker migration 和发布步骤。
 
+### GitHub Actions 发布凭证
+
+`.github/workflows/deploy.yml` 在推送 `main` 或手工运行时发布；Pull Request 不发布生产站点。流程先检查四个 Actions Secrets，然后对 Worker 进行类型检查、集成测试、D1 migration、发布及版本和路由校验；全部成功后才构建并发布前端。后端失败时，前端发布任务会跳过。
+
+若出现 `In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN`，表示运行器没有取得 Token。工作流已使用 `${{ secrets.CLOUDFLARE_API_TOKEN }}`；需要配置 GitHub 仓库密钥，修改网站代码或执行 `wrangler login` 不能替代此步骤。
+
+1. 按 [Cloudflare 的 GitHub Actions 认证说明](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) 创建 API Token，使用 **Edit Cloudflare Workers** 模板，将账户范围限制为本项目所在账户。此流程会发布 Pages 并自动应用远程 D1 migration，还需 **Account → Cloudflare Pages → Edit** 和 **Account → D1 → Edit** 权限。
+2. 打开 [Music-EDU 的 Actions Secrets 设置](https://github.com/Wiiiiiiiley/Music-EDU/settings/secrets/actions)，选择 **New repository secret**，分别添加：
+
+| Secret 名称 | 内容 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | 创建的 Cloudflare API Token |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID（账户 ID，非 Zone ID） |
+| `VITE_API_URL` | Worker API 地址，例如 `https://edutempo-api.wileymei3.workers.dev` |
+| `VITE_WS_URL` | 实时服务地址，例如 `wss://edutempo-api.wileymei3.workers.dev/ws` |
+
+凭证必须放在 **Actions 的 Repository secrets**；同名的 Variables、Dependabot secrets 或 Cloudflare Pages 构建变量不会被这个工作流的 `secrets` 表达式读取。若使用 GitHub Environment secrets，需在工作流 job 声明相应的 `environment`；当前工作流使用 Repository secrets。
+
+配置并提交、推送修复后，在 GitHub **Actions → Deploy to Cloudflare** 中选择 **Run workflow**，分支选 `main`。重新运行旧任务仍使用它原来的提交，不包含新修复。Token 只保存在 GitHub Secrets 中，不写入源码、`.env`、聊天或日志。Wrangler 的版本更新提示是警告，不能通过升级来解决缺失 Token。
+
+### WebSocket 和提示记录返回 404
+
+如果浏览器连接 `/ws?ensembleId=...&userId=...` 时握手返回 404，且提示记录 `/api/ensembles/:id/cues` 也返回 404，先查看 **Deploy Backend (Workers)** 任务。前端成功发布不代表后端已更新；只有 Pages 更新时，浏览器仍可能连接缺少这些接口的旧 Worker。不要通过修改前端协议来绕过尚未发布的后端。
+
+更新后的 `/health` 返回 `apiVersion: 2`、`capabilities` 和 `revision`。CI 将当前 Git 提交写入 `APP_REVISION`，发布后的只读校验要求线上版本与本次提交相同，并确认两个路由存在；不满足就中止前端发布。校验脚本不会创建乐团或成员，也不会修改生产数据。
+
+正常的普通 HTTP `GET /ws` 返回 **426**（需要 WebSocket Upgrade）；真正的 WebSocket 握手返回 **101**。提示记录接口在有效乐团和成员下返回 **200**。`{"error":"Not Found"}` 表示路由未匹配；`{"error":"乐团不存在"}` 表示路由已匹配但没有该乐团，需要核对前端指向的 Worker 和该 Worker 的 D1 绑定。
+
 上传返回 Worker 自身的 `/api/upload/files/...` 地址，由 R2 绑定读取，无需公开 R2 桶域名。PDF CMaps、标准字体和 worker 脚本随前端构建发布。
 
 ## Express + Socket.IO

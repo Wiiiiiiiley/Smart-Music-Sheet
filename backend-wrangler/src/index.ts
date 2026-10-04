@@ -13,13 +13,21 @@ export interface Env extends Record<string, unknown> {
   CORS_ORIGIN: string
   UPLOADS: R2Bucket
   WEBSOCKET: DurableObjectNamespace
+  APP_REVISION?: string
 }
 export { WebSocketServer } from './websocket'
 const app = new Hono<{ Bindings: Env }>()
 app.use('*', logger())
 // No cookies or credentials are used; wildcard CORS allows Pages previews and local clients.
 app.use('/api/*', cors({ origin: '*', allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization', 'Range'], exposeHeaders: ['Content-Length', 'Content-Range', 'Accept-Ranges', 'ETag'] }))
-app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'EduTempo API' }))
+app.get('/health', c => c.json({
+  status: 'ok',
+  timestamp: new Date().toISOString(),
+  service: 'EduTempo API',
+  apiVersion: 2,
+  capabilities: ['ensemble-websocket', 'cue-history'],
+  revision: c.env.APP_REVISION || 'development',
+}))
 app.get('/ws', websocketHandler)
 app.route('/api/ensembles', ensemblesRouter)
 app.route('/api/scores', scoresRouter)

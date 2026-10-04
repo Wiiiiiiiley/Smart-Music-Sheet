@@ -38,7 +38,7 @@ function client(ws) {
 try {
   const bundle = path.join(directory, 'worker.mjs')
   await build({ entryPoints: [path.join(workerDirectory, 'src/index.ts')], outfile: bundle, bundle: true, format: 'esm', platform: 'browser', target: 'es2022' })
-  mf = new Miniflare({ modules: true, rootPath: directory, modulesRoot: directory, scriptPath: bundle, compatibilityDate: '2024-01-01', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'], r2Buckets: ['UPLOADS'], durableObjects: { WEBSOCKET: { className: 'WebSocketServer', useSQLite: true } } })
+  mf = new Miniflare({ modules: true, rootPath: directory, modulesRoot: directory, scriptPath: bundle, compatibilityDate: '2024-01-01', compatibilityFlags: ['nodejs_compat'], bindings: { APP_REVISION: 'integration-test' }, d1Databases: ['DB'], r2Buckets: ['UPLOADS'], durableObjects: { WEBSOCKET: { className: 'WebSocketServer', useSQLite: true } } })
   const database = await mf.getD1Database('DB')
   for (const migration of (await readdir(path.join(workerDirectory, 'migrations'))).filter(name => name.endsWith('.sql')).sort()) {
     const sql = await readFile(path.join(workerDirectory, 'migrations', migration), 'utf8')
@@ -61,6 +61,13 @@ try {
     await result.event('room-members')
     return result
   }
+  const health = await json('/health')
+  assert.equal(health.status, 'ok')
+  assert.equal(health.apiVersion, 2)
+  assert.equal(health.revision, 'integration-test')
+  assert.deepEqual(health.capabilities, ['ensemble-websocket', 'cue-history'])
+  assert.equal((await mf.dispatchFetch('http://localhost/ws?ensembleId=deployment-check&userId=deployment-check')).status, 426)
+  assert.equal((await json('/api/ensembles/deployment-check-nonexistent/cues', 'GET', undefined, 404)).error, '乐团不存在')
   const ensemble = await json('/api/ensembles', 'POST', { name: 'Worker 乐团', conductorId: 'worker-conductor', conductorName: 'Worker 指挥' }, 201)
   const violin = await json(`/api/ensembles/${ensemble.id}/members`, 'POST', { id: 'worker-violin', name: 'Violin', section: 'violin1' }, 201)
   const cello = await json(`/api/ensembles/${ensemble.id}/members`, 'POST', { id: 'worker-cello', name: 'Cello', section: 'cello' }, 201)

@@ -36,6 +36,22 @@ npx wrangler pages deploy dist --project-name edutempo
 
 Vite 环境变量在构建时写入静态 JS。`wrangler.toml` 的运行时 vars 不能改变已构建文件的地址。Pages Git 构建时应配置对应构建环境变量，根目录选仓库根、命令 `npm run build:frontend`、输出目录 `frontend/dist`。
 
+### Pages Git 构建配置
+
+在 Cloudflare Dashboard 的 Pages 项目中，进入 **Settings → Builds & deployments → Build configuration**，使用以下设置：
+
+| 设置 | 值 |
+| --- | --- |
+| 根目录 | 仓库根目录（留空） |
+| 构建命令 | `npm run build:frontend` |
+| 构建输出目录 | `frontend/dist` |
+
+仓库根的 `wrangler.toml` 已通过 `pages_build_output_dir = "frontend/dist"` 声明同一个输出路径。`frontend/wrangler.toml` 的 `dist` 则供从 `frontend` 目录执行的 CLI 发布使用。
+
+若日志显示 Vite 构建成功，随后出现 `Error: Output directory "dist" not found`，原因是 Pages 在仓库根寻找 `dist`，而实际文件位于 `frontend/dist`。提交并推送根配置的修复，将 Dashboard 输出目录改为 `frontend/dist`，然后重新部署。已有的 `npm run build` 也能生成前端文件，但还会构建用于 Node.js 的 Express 后端；Pages 只需构建前端。
+
+Pages Git 构建只发布前端，不会自动迁移 D1 或发布 `backend-wrangler`。更新协作功能后，仍需执行上面的 Worker migration 和发布步骤。
+
 上传返回 Worker 自身的 `/api/upload/files/...` 地址，由 R2 绑定读取，无需公开 R2 桶域名。PDF CMaps、标准字体和 worker 脚本随前端构建发布。
 
 ## Express + Socket.IO
